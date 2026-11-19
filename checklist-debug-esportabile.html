@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checklist debug app</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: colonna centrale con le voci, caselle Android a sinistra e iOS a destra, intestazione fissa con i totali */
+:root {
+  --paper: #f3f5f7;
+  --card: #ffffff;
+  --ink: #14202b;
+  --muted: #5a6b7a;
+  --line: #d8dfe6;
+  --accent: #0b6b8a;
+  --ok: #1a7f4b;
+  --bug: #c2331f;
+  --bug-tint: #fdeeec;
+  --ok-tint: #e8f5ee;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0f1720;
+    --card: #17212c;
+    --ink: #e6edf3;
+    --muted: #96a6b5;
+    --line: #2b3946;
+    --accent: #5cc0de;
+    --ok: #46c27e;
+    --bug: #ff7a66;
+    --bug-tint: #3a2220;
+    --ok-tint: #17332a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0f1720;
+  --card: #17212c;
+  --ink: #e6edf3;
+  --muted: #96a6b5;
+  --line: #2b3946;
+  --accent: #5cc0de;
+  --ok: #46c27e;
+  --bug: #ff7a66;
+  --bug-tint: #3a2220;
+  --ok-tint: #17332a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.45;
+}
+.wrap { max-width: 900px; margin: 0 auto; padding: 24px 16px 80px; }
+h1 { font-size: 1.6rem; line-height: 1.2; margin: 0 0 4px; font-weight: 600; text-wrap: balance; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+
+.vers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 4px; }
+.vers label { display: flex; flex-direction: column; gap: 4px; font-size: .78rem; color: var(--muted); font-weight: 500; }
+.vers input {
+  font: inherit; font-size: .95rem; color: var(--ink);
+  background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+  padding: 8px 10px; min-height: 40px; width: 100%;
+}
+.vers input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.meta {
+  display: grid;
+  grid-template-columns: minmax(170px, 260px);
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+.meta label { display: flex; flex-direction: column; gap: 4px; font-size: .78rem; color: var(--muted); font-weight: 500; }
+.meta input {
+  font: inherit; font-size: .95rem; color: var(--ink);
+  background: var(--paper); border: 1px solid var(--line); border-radius: 6px;
+  padding: 8px 10px; min-height: 40px; width: 100%;
+}
+
+.tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+.tools .grow { flex: 1; }
+.btn {
+  font: inherit; font-size: .9rem; font-weight: 500; color: var(--ink);
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 14px; min-height: 40px; cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+:root[data-theme="dark"] .btn.primary { color: #06222b; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.primary { color: #06222b; } }
+.btn.danger { color: var(--bug); }
+.switch { display: inline-flex; align-items: center; gap: 8px; font-size: .9rem; cursor: pointer; min-height: 40px; }
+.switch input { width: 18px; height: 18px; accent-color: var(--accent); }
+.status { font-size: .8rem; color: var(--muted); }
+
+.head {
+  position: sticky; top: 0; z-index: 5;
+  display: grid; grid-template-columns: 76px 1fr 76px; gap: 8px; align-items: end;
+  background: var(--paper);
+  padding: 10px 0 8px;
+  border-bottom: 2px solid var(--ink);
+}
+.head .plat { text-align: center; font-weight: 600; font-size: .85rem; letter-spacing: .04em; }
+.head .cnt { display: block; font-family: var(--font-mono); font-size: .72rem; color: var(--muted); font-weight: 500; letter-spacing: 0; }
+.head .cnt b { color: var(--bug); font-weight: 500; }
+.head .mid { font-size: .8rem; color: var(--muted); text-align: center; }
+
+section { margin-top: 22px; }
+section h2 {
+  display: flex; align-items: baseline; gap: 10px;
+  margin: 0; padding: 6px 0; font-size: .95rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--accent);
+}
+section h2 .sn { font-family: var(--font-mono); font-size: .8rem; color: var(--muted); }
+.hint { margin: 0 0 6px; font-size: .85rem; color: var(--muted); }
+.rows { background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.row {
+  display: grid; grid-template-columns: 76px 1fr 76px; gap: 8px; align-items: center;
+  padding: 8px 0; border-top: 1px solid var(--line);
+}
+.row:first-child { border-top: 0; }
+.row.has-bug { background: var(--bug-tint); }
+.row.all-ok { background: var(--ok-tint); }
+.txt { padding: 2px 0; min-width: 0; }
+.lbl { overflow-wrap: anywhere; }
+.num { font-family: var(--font-mono); font-size: .75rem; color: var(--muted); margin-right: 8px; }
+.acts { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.delbtn { color: var(--muted) !important; }
+.clabel {
+  width: 100%; font: inherit; color: var(--ink); background: var(--paper);
+  border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; min-height: 40px; margin-top: 2px;
+}
+.clabel:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.addrow { margin-top: 8px; }
+.only-bugs .addrow { display: none; }
+.notebtn, .delbtn {
+  display: block; margin-top: 2px; padding: 4px 0; font: inherit; font-size: .8rem; color: var(--accent);
+  background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
+}
+.note {
+  display: none; width: 100%; margin-top: 6px; font: inherit; font-size: .9rem; color: var(--ink);
+  background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px;
+  min-height: 40px; resize: vertical; field-sizing: content;
+}
+.row.show-note .note { display: block; }
+.row.show-note .notebtn { display: none; }
+
+.box {
+  justify-self: center; width: 44px; height: 44px; border-radius: 8px;
+  border: 2px solid var(--muted); background: var(--card); color: #fff;
+  display: grid; place-items: center; cursor: pointer; padding: 0;
+}
+.box:focus-visible, .btn:focus-visible, .notebtn:focus-visible, .meta input:focus-visible, .note:focus-visible, .switch input:focus-visible {
+  outline: 3px solid var(--accent); outline-offset: 2px;
+}
+.box svg { width: 24px; height: 24px; display: none; }
+.box[data-s="1"] { background: var(--ok); border-color: var(--ok); }
+.box[data-s="2"] { background: var(--bug); border-color: var(--bug); }
+.box[data-s="1"] .i-ok, .box[data-s="2"] .i-bug { display: block; }
+:root[data-theme="dark"] .box[data-s="1"], :root[data-theme="dark"] .box[data-s="2"] { color: #0b1218; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .box[data-s="1"], :root:not([data-theme="light"]) .box[data-s="2"] { color: #0b1218; } }
+
+.only-bugs .row:not(.has-bug) { display: none; }
+.only-bugs section.no-bug { display: none; }
+
+.panel { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; place-items: center; padding: 16px; z-index: 20; }
+.panel.open { display: grid; }
+.panel-box { background: var(--card); border-radius: 12px; padding: 16px; width: min(680px, 100%); max-height: 90%; display: flex; flex-direction: column; gap: 10px; }
+.panel-box h3 { margin: 0; font-size: 1rem; }
+.panel-box textarea { width: 100%; min-height: 260px; font-family: var(--font-mono); font-size: .8rem; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 10px; }
+
+@media (max-width: 480px) {
+  .head, .row { grid-template-columns: 56px 1fr 56px; gap: 6px; }
+  .box { width: 42px; height: 42px; }
+}
+@media print {
+  body { background: #fff; color: #000; }
+  .tools, .notebtn, .delbtn, .addrow, .status, .panel { display: none !important; }
+  .clabel { border: 0; padding: 0; background: none; }
+  .head { position: static; }
+  .meta input { border: 0; padding: 0; background: none; }
+  .row.show-note .note { border: 0; padding: 0; background: none; }
+  .rows, .row { break-inside: avoid; }
+  .box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .box { transition: background-color .12s, border-color .12s; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Checklist di debug dell'app</h1>
+  <p class="sub">Tocca una casella per cambiare stato: prima OK, poi Problema, poi vuota. Le note si aprono sotto ogni voce.</p>
+
+  <div class="meta" id="meta">
+    <label>Data<input id="m-date" data-k="date" type="date"></label>
+  </div>
+
+  <div class="tools">
+    <label class="switch"><input type="checkbox" id="only-bugs"> Mostra solo i problemi</label>
+    <span class="grow"></span>
+    <span class="status" id="status" role="status"></span>
+    <button class="btn primary" id="b-csv" type="button">Scarica CSV</button>
+    <button class="btn" id="b-copy" type="button">Copia riepilogo</button>
+    <button class="btn danger" id="b-reset" type="button">Azzera tutto</button>
+  </div>
+
+  <div class="vers">
+    <label>Versione Android<input id="m-ver-a" data-k="verA" type="text" autocomplete="off" placeholder="es. 1.0.3 (45)"></label>
+    <label>Versione iOS<input id="m-ver-i" data-k="verI" type="text" autocomplete="off" placeholder="es. 1.0.3 (45)"></label>
+  </div>
+
+  <div class="head" id="head">
+    <div class="plat">ANDROID<span class="cnt" id="cnt-a"></span></div>
+    <div class="mid">Voce da controllare</div>
+    <div class="plat">iOS<span class="cnt" id="cnt-i"></span></div>
+  </div>
+
+  <main id="list"></main>
+</div>
+
+<div class="panel" id="panel" role="dialog" aria-modal="true" aria-labelledby="panel-title">
+  <div class="panel-box">
+    <h3 id="panel-title">Riepilogo</h3>
+    <textarea id="panel-text" readonly></textarea>
+    <div><button class="btn" id="panel-close" type="button">Chiudi</button></div>
+  </div>
+</div>
+
+<script>
+const SECTIONS = [
+  { t: "Login", items: [
+    "Con username e password",
+    "Con Google",
+    "Con Facebook" ] },
+  { t: "Home", items: [
+    "Tasti dell'header",
+    "Tasti della home alle varie sezioni",
+    "Tasti del footer",
+    "Banner",
+    "Link ai tips",
+    "Link ai punti di interesse",
+    "Link agli ultimi itinerari",
+    "Link ai video più popolari" ] },
+  { t: "Pagina POI", items: [
+    "Tasto posizione attuale",
+    "Filtro POI",
+    "\"Cerca qui\"",
+    "Linguetta alza/abbassa",
+    "Campo di ricerca (scrivere, cercare, \"x\" svuota campo)" ] },
+  { t: "Ricerca POI", items: [
+    "Ordine dei POI per distanza dal luogo cercato",
+    "Tasto mappa/satellite",
+    "Spostamento e zoom mappa",
+    "Ricerca e refresh della lista",
+    "Controllare che nella lista POI appaiano le distanze e i testi correttamente" ] },
+  { t: "Pagina del singolo POI", items: [
+    "Vista in mappa",
+    "Immagini",
+    "Recensioni",
+    "Condividi",
+    "Chiama",
+    "Preferiti",
+    "Aggiungi a WeGo",
+    "Info",
+    "Recensioni",
+    "Richiesta Affiliazione (test tasto e mail inviate)",
+    "Recensione",
+    "Naviga" ] },
+  { t: "Creazione POI", items: [
+    "Ricerca località",
+    "Riempimento campi",
+    "Caricamento immagine",
+    "Salvataggio" ] },
+  { t: "WeGo", hint: "Da testare per Itinerari ed Eventi.", items: [
+    "Lista WeGo",
+    "Iscriviti/Disiscriviti",
+    "Vedi partecipanti",
+    "Chat del WeGo" ] },
+  { t: "Creazione WeGo", items: [
+    "Inserimento foto",
+    "Campi di testo",
+    "Imposta luogo evento",
+    "Cambia luogo evento",
+    "Aggiunta PDF",
+    "Salva" ] },
+  { t: "Su itinerari creati", items: [
+    "Aggiungi tappe",
+    "Salva" ] },
+  { t: "Video", items: [
+    "Like",
+    "Commenti",
+    "Condividi",
+    "Preferiti",
+    "Vai al link",
+    "Tasto + Nuovo video" ] },
+  { t: "Aggiungi video", items: [
+    "Link a YT funzionante o meno" ] },
+  { t: "Profilo", items: [
+    "Link",
+    "Cosa c'è di nuovo (porta al blog?)",
+    "Cambio lingua e controllo a campione nelle varie sezioni",
+    "Posizione camper" ] },
+  { t: "Chat", items: [
+    "Prova di invio e ricezione messaggi" ] }
+];
+
+const STATE_NAMES = ["da testare", "OK", "problema"];
+const LS_KEY = "checklist-debug-v1";
+const BASE = SECTIONS.reduce((n, s) => n + s.items.length, 0);
+function total() { return BASE + Object.keys(S.custom).reduce((n, k) => n + S.custom[k].length, 0); }
+
+let S = { meta: {}, rows: {}, custom: {}, updated: 0 };
+let dirty = false;
+let docRef = null;
+let dl = null;
+let saveTimer = null;
+let writing = Promise.resolve();
+
+const $ = (id) => document.getElementById(id);
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+function row(id) { return S.rows[id] || (S.rows[id] = { a: 0, i: 0, n: "" }); }
+
+/* ---------- costruzione della pagina ---------- */
+const SVG_OK = '<svg class="i-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5 10-11"/></svg>';
+const SVG_BUG = '<svg class="i-bug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+function build() {
+  const list = $("list");
+  const frag = document.createDocumentFragment();
+  SECTIONS.forEach((s, si) => {
+    const sec = document.createElement("section");
+    sec.dataset.si = si;
+    const h = document.createElement("h2");
+    h.innerHTML = '<span class="sn">' + (si + 1) + "</span>";
+    h.appendChild(document.createTextNode(s.t));
+    sec.appendChild(h);
+    if (s.hint) {
+      const p = document.createElement("p");
+      p.className = "hint";
+      p.textContent = s.hint;
+      sec.appendChild(p);
+    }
+    const rows = document.createElement("div");
+    rows.className = "rows";
+    s.items.forEach((label, ii) => {
+      const id = (si + 1) + "." + (ii + 1);
+      const r = document.createElement("div");
+      r.className = "row";
+      r.dataset.id = id;
+      r.innerHTML =
+        '<button type="button" class="box" data-p="a" data-s="0">' + SVG_OK + SVG_BUG + "</button>" +
+        '<div class="txt"><span class="num"></span><span class="lbl"></span>' +
+        '<button type="button" class="notebtn">Aggiungi nota</button>' +
+        '<textarea class="note" rows="1" placeholder="Nota"></textarea></div>' +
+        '<button type="button" class="box" data-p="i" data-s="0">' + SVG_OK + SVG_BUG + "</button>";
+      r.querySelector(".num").textContent = id;
+      r.querySelector(".lbl").textContent = label;
+      r.querySelector(".note").id = "note-" + id.replace(".", "-");
+      rows.appendChild(r);
+    });
+    sec.appendChild(rows);
+    const add = document.createElement("div");
+    add.className = "addrow";
+    add.innerHTML = '<button type="button" class="btn add" data-si="' + si + '">+ Aggiungi riga</button>';
+    sec.appendChild(add);
+    frag.appendChild(sec);
+  });
+  list.appendChild(frag);
+}
+
+function labelFor(id, label, p, s) {
+  return (p === "a" ? "Android" : "iOS") + ", voce " + id + ", " + label + ": " + STATE_NAMES[s] + ". Premi per cambiare stato.";
+}
+
+function paintRow(el) {
+  const id = el.dataset.id;
+  const d = row(id);
+  const lblEl = el.querySelector(".lbl") || el.querySelector(".clabel");
+  const label = lblEl.value !== undefined ? lblEl.value : lblEl.textContent;
+  ["a", "i"].forEach((p) => {
+    const b = el.querySelector('.box[data-p="' + p + '"]');
+    b.dataset.s = d[p];
+    b.setAttribute("aria-label", labelFor(id, label, p, d[p]));
+  });
+  el.classList.toggle("has-bug", d.a === 2 || d.i === 2);
+  el.classList.toggle("all-ok", d.a === 1 && d.i === 1);
+  const ta = el.querySelector(".note");
+  if (ta.value !== d.n) ta.value = d.n;
+  if (d.n) el.classList.add("show-note");
+}
+
+function renderCustom() {
+  document.querySelectorAll(".row.custom").forEach((r) => r.remove());
+  SECTIONS.forEach((s, si) => {
+    const rows = document.querySelector('section[data-si="' + si + '"] .rows');
+    (S.custom[si] || []).forEach((c, k) => {
+      const r = document.createElement("div");
+      r.className = "row custom";
+      r.dataset.id = c.uid;
+      r.dataset.si = si;
+      r.innerHTML =
+        '<button type="button" class="box" data-p="a" data-s="0">' + SVG_OK + SVG_BUG + "</button>" +
+        '<div class="txt"><span class="num"></span>' +
+        '<input class="clabel" type="text" autocomplete="off" placeholder="Oggetto del punto da controllare">' +
+        '<div class="acts"><button type="button" class="notebtn">Aggiungi nota</button>' +
+        '<button type="button" class="delbtn">Elimina riga</button></div>' +
+        '<textarea class="note" rows="1" placeholder="Nota"></textarea></div>' +
+        '<button type="button" class="box" data-p="i" data-s="0">' + SVG_OK + SVG_BUG + "</button>";
+      r.querySelector(".num").textContent = (si + 1) + "." + (s.items.length + k + 1);
+      r.querySelector(".clabel").id = "clabel-" + c.uid;
+      r.querySelector(".clabel").value = c.label;
+      r.querySelector(".note").id = "note-" + c.uid;
+      rows.appendChild(r);
+    });
+  });
+}
+
+function paintAll() {
+  renderCustom();
+  document.querySelectorAll(".row").forEach(paintRow);
+  document.querySelectorAll("[data-k]").forEach((inp) => {
+    inp.value = S.meta[inp.dataset.k] || "";
+  });
+  refreshCounts();
+}
+
+function refreshCounts() {
+  let ok = { a: 0, i: 0 }, bug = { a: 0, i: 0 };
+  Object.keys(S.rows).forEach((id) => {
+    const d = S.rows[id];
+    ["a", "i"].forEach((p) => { if (d[p] === 1) ok[p]++; else if (d[p] === 2) bug[p]++; });
+  });
+  ["a", "i"].forEach((p) => {
+    $("cnt-" + p).innerHTML = ok[p] + "/" + total() + (bug[p] ? " <b>" + bug[p] + "&nbsp;KO</b>" : "");
+  });
+  document.querySelectorAll("section").forEach((sec) => {
+    sec.classList.toggle("no-bug", !sec.querySelector(".row.has-bug"));
+  });
+}
+
+/* ---------- salvataggio ---------- */
+function setStatus(t) { $("status").textContent = t; }
+
+function touch() {
+  dirty = true;
+  S.updated = Date.now();
+  setStatus("Salvataggio in corso");
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(persist, 700);
+}
+
+function persist() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch (e) {}
+  if (!docRef) { setStatus("Salvato solo su questo browser"); return; }
+  const snapshot = JSON.parse(JSON.stringify(S));
+  writing = writing
+    .then(() => docRef.set(snapshot))
+    .then(() => setStatus("Salvato nel tuo account"))
+    .catch(() => setStatus("Salvato solo su questo browser"));
+}
+
+function adopt(data) {
+  if (!data || typeof data !== "object") return;
+  S = { meta: data.meta || {}, rows: data.rows || {}, custom: data.custom || {}, updated: data.updated || 0 };
+}
+
+/* ---------- eventi ---------- */
+const CYCLE = [1, 2, 0];
+$("list").addEventListener("click", (e) => {
+  const addBtn = e.target.closest(".add");
+  if (addBtn) {
+    const si = addBtn.dataset.si;
+    (S.custom[si] || (S.custom[si] = [])).push({ uid: "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), label: "" });
+    paintAll();
+    touch();
+    const inputs = document.querySelectorAll('section[data-si="' + si + '"] .clabel');
+    inputs[inputs.length - 1].focus();
+    return;
+  }
+  const box = e.target.closest(".box");
+  const nb = e.target.closest(".notebtn");
+  const del = e.target.closest(".delbtn");
+  const el = e.target.closest(".row");
+  if (!el) return;
+  if (del) {
+    if (!del.dataset.armed) {
+      del.dataset.armed = "1";
+      del.textContent = "Sicuro? Tocca ancora";
+      setTimeout(() => { del.dataset.armed = ""; del.textContent = "Elimina riga"; }, 3000);
+      return;
+    }
+    const si = el.dataset.si;
+    S.custom[si] = (S.custom[si] || []).filter((c) => c.uid !== el.dataset.id);
+    delete S.rows[el.dataset.id];
+    paintAll();
+    touch();
+    return;
+  }
+  if (box) {
+    const d = row(el.dataset.id);
+    const p = box.dataset.p;
+    d[p] = CYCLE[d[p]];
+    paintRow(el);
+    refreshCounts();
+    touch();
+  } else if (nb) {
+    el.classList.add("show-note");
+    el.querySelector(".note").focus();
+  }
+});
+$("list").addEventListener("input", (e) => {
+  const el = e.target.closest(".row");
+  if (e.target.classList.contains("clabel")) {
+    const c = (S.custom[el.dataset.si] || []).find((x) => x.uid === el.dataset.id);
+    if (c) { c.label = e.target.value; touch(); }
+    return;
+  }
+  if (!e.target.classList.contains("note")) return;
+  row(el.dataset.id).n = e.target.value;
+  touch();
+});
+document.querySelectorAll("[data-k]").forEach((inp) => {
+  inp.addEventListener("input", () => { S.meta[inp.dataset.k] = inp.value; touch(); });
+});
+$("only-bugs").addEventListener("change", (e) => {
+  document.body.classList.toggle("only-bugs", e.target.checked);
+});
+
+let resetArmed = null;
+$("b-reset").addEventListener("click", () => {
+  const b = $("b-reset");
+  if (!resetArmed) {
+    b.textContent = "Conferma azzeramento";
+    resetArmed = setTimeout(() => { b.textContent = "Azzera tutto"; resetArmed = null; }, 4000);
+    return;
+  }
+  clearTimeout(resetArmed); resetArmed = null;
+  b.textContent = "Azzera tutto";
+  const keep = S.meta;
+  S = { meta: keep, rows: {}, custom: S.custom, updated: Date.now() };
+  document.querySelectorAll(".row").forEach((el) => { el.classList.remove("show-note"); el.querySelector(".note").value = ""; });
+  paintAll();
+  touch();
+});
+
+/* ---------- esportazione ---------- */
+function stateWord(s) { return s === 1 ? "OK" : s === 2 ? "Problema" : "Da testare"; }
+
+function allRows() {
+  const out = [];
+  SECTIONS.forEach((s, si) => {
+    s.items.forEach((label, ii) => {
+      const id = (si + 1) + "." + (ii + 1);
+      out.push({ id, sec: s.t, label, d: row(id) });
+    });
+    (S.custom[si] || []).forEach((c, k) => {
+      out.push({ id: (si + 1) + "." + (s.items.length + k + 1), sec: s.t, label: c.label || "(senza titolo)", d: row(c.uid) });
+    });
+  });
+  return out;
+}
+
+function csvCell(v) { return '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"'; }
+
+function buildCsv() {
+  const m = S.meta;
+  const lines = [
+    ["Checklist di debug dell'app"],
+    ["Data", m.date || ""],
+    ["Versione Android", m.verA || ""], ["Versione iOS", m.verI || ""], [],
+    ["N.", "Sezione", "Voce", "Android", "iOS", "Nota"]
+  ];
+  allRows().forEach((r) => lines.push([r.id, r.sec, r.label, stateWord(r.d.a), stateWord(r.d.i), r.d.n]));
+  return "﻿" + lines.map((l) => l.map(csvCell).join(";")).join("\r\n");
+}
+
+function buildSummary() {
+  const m = S.meta, rs = allRows();
+  const c = (p, s) => rs.filter((r) => r.d[p] === s).length;
+  let t = "Debug app" + (m.date ? ", " + m.date : "") + "\n";
+  t += "Android" + (m.verA ? " (versione " + m.verA + ")" : "") + ": " + c("a", 1) + " OK, " + c("a", 2) + " problemi, " + c("a", 0) + " da testare su " + total() + "\n";
+  t += "iOS" + (m.verI ? " (versione " + m.verI + ")" : "") + ": " + c("i", 1) + " OK, " + c("i", 2) + " problemi, " + c("i", 0) + " da testare su " + total() + "\n";
+  const bugs = rs.filter((r) => r.d.a === 2 || r.d.i === 2);
+  if (bugs.length) {
+    t += "\nProblemi:\n";
+    bugs.forEach((r) => {
+      const where = r.d.a === 2 && r.d.i === 2 ? "Android e iOS" : r.d.a === 2 ? "Android" : "iOS";
+      t += "- " + r.id + " " + r.sec + " > " + r.label + " [" + where + "]" + (r.d.n ? ": " + r.d.n : "") + "\n";
+    });
+  }
+  const notes = rs.filter((r) => r.d.n && !(r.d.a === 2 || r.d.i === 2));
+  if (notes.length) {
+    t += "\nNote:\n";
+    notes.forEach((r) => { t += "- " + r.id + " " + r.sec + " > " + r.label + ": " + r.d.n + "\n"; });
+  }
+  return t;
+}
+
+function showPanel(title, text) {
+  $("panel-title").textContent = title;
+  $("panel-text").value = text;
+  $("panel").classList.add("open");
+  $("panel-text").focus();
+  $("panel-text").select();
+}
+$("panel-close").addEventListener("click", () => $("panel").classList.remove("open"));
+$("panel").addEventListener("click", (e) => { if (e.target === $("panel")) $("panel").classList.remove("open"); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("panel").classList.remove("open"); });
+
+$("b-copy").addEventListener("click", async () => {
+  const text = buildSummary();
+  try {
+    await navigator.clipboard.writeText(text);
+    setStatus("Riepilogo copiato");
+  } catch (e) {
+    showPanel("Riepilogo da copiare", text);
+  }
+});
+
+$("b-csv").addEventListener("click", async () => {
+  const m = S.meta;
+  const name = "checklist-debug-" + (m.date || todayIso()) + ".csv";
+  try {
+    if (dl) {
+      await dl.save({ filename: name, data: buildCsv() });
+    } else {
+      const url = URL.createObjectURL(new Blob([buildCsv()], { type: "text/csv;charset=utf-8" }));
+      const a = document.createElement("a");
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+    setStatus("CSV scaricato");
+  } catch (e) {
+    if (!e || e.code !== "declined") setStatus("Download non disponibile, usa Copia riepilogo");
+  }
+});
+
+/* ---------- avvio ---------- */
+build();
+try {
+  const raw = localStorage.getItem(LS_KEY);
+  if (raw) adopt(JSON.parse(raw));
+} catch (e) {}
+if (!S.meta.date) S.meta.date = todayIso();
+paintAll();
+
+async function initCloud() {
+  if (!window.claude || !window.claude.use) return;
+  const [user, db, dls] = await Promise.all([
+    window.claude.use("user"), window.claude.use("db"), window.claude.use("downloads")
+  ]);
+  if (dls) { dl = dls; $("b-csv").hidden = false; }
+  if (!user || !db) return;
+  const uid = await user.id();
+  if (!uid) return;
+  const ref = db.collection("data/users/" + uid).doc("checklist");
+  try {
+    const snap = await ref.get();
+    const remote = snap.exists ? snap.data() : null;
+    if (remote && !dirty && (remote.updated || 0) > (S.updated || 0)) {
+      adopt(remote);
+      if (!S.meta.date) S.meta.date = todayIso();
+      paintAll();
+    }
+    docRef = ref;
+    if (dirty || (!remote && S.updated)) persist();
+    else setStatus("Salvato nel tuo account");
+  } catch (e) {
+    setStatus("Salvato solo su questo browser");
+  }
+}
+initCloud().catch(() => {});
+</script>
+</body>
+</html>
